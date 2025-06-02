@@ -1,14 +1,13 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getFirestore, type Firestore } from "firebase/firestore";
-import { getAuth, type Auth } from "firebase/auth";
+import { getAuth, initializeAuth, browserLocalPersistence, type Auth } from "firebase/auth";
 import { firebaseConfig } from "./config";
 
 let app: FirebaseApp;
 let dbInstance: Firestore;
 let authInstance: Auth;
 
-// Perform critical configuration check before attempting to initialize
 const criticalConfigMissing =
   !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" || firebaseConfig.apiKey.trim() === "" ||
   !firebaseConfig.authDomain || firebaseConfig.authDomain.trim() === "" ||
@@ -25,19 +24,24 @@ if (criticalConfigMissing) {
     "AND ALSO in your Vercel (or other hosting provider) project's environment variable settings for deployed environments. " +
     "Current config being checked: " + JSON.stringify(firebaseConfig);
   console.error(errorMessage);
-  // Throw an error immediately to prevent further execution with bad config
   throw new Error(errorMessage);
 }
 
 try {
   if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
+    // Explicitly initialize Auth with browserLocalPersistence when the app is first initialized
+    authInstance = initializeAuth(app, {
+      persistence: browserLocalPersistence
+    });
   } else {
     app = getApp();
+    // For subsequent accesses or in hot-reloads, get the existing auth instance.
+    // Firebase's getAuth() should respect the persistence set during the initial initializeAuth call for the app instance.
+    authInstance = getAuth(app);
   }
 
   dbInstance = getFirestore(app);
-  authInstance = getAuth(app);
 
   if (!dbInstance) {
     throw new Error(
@@ -48,7 +52,7 @@ try {
   }
   if (!authInstance) {
     throw new Error(
-      "Auth initialization (getAuth) returned a falsy value. " +
+      "Auth initialization (initializeAuth/getAuth) returned a falsy value. " +
       "This could indicate an issue with the Firebase app configuration."
     );
   }
@@ -60,8 +64,6 @@ try {
     errorMessage,
     e instanceof Error ? e.stack : ''
   );
-  // Re-throw a more user-friendly error that guides towards checking config,
-  // unless the error is already the critical config missing error.
   if (!errorMessage.startsWith("CRITICAL FIREBASE CONFIGURATION ERROR")) {
     throw new Error(
       `Firebase/Firestore initialization failed. This is often due to incorrect Firebase configuration ` +
@@ -69,7 +71,7 @@ try {
       `Original error: ${errorMessage}`
     );
   }
-  throw e; // Re-throw the original critical config error
+  throw e;
 }
 
 export { app, dbInstance as db, authInstance as auth };
