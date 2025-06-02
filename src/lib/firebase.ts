@@ -9,14 +9,18 @@ let dbInstance: Firestore; // Use a local variable for initialization
 let authInstance: Auth;
 
 try {
-  // Check for common placeholder values or missing configuration
+  // Check for common placeholder values or missing/empty configuration
   const criticalConfigMissing =
     !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" || firebaseConfig.apiKey.trim() === "" ||
-    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID" || firebaseConfig.projectId.trim() === "";
+    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID" || firebaseConfig.projectId.trim() === "" ||
+    !firebaseConfig.authDomain || firebaseConfig.authDomain.trim() === "" ||
+    !firebaseConfig.storageBucket || firebaseConfig.storageBucket.trim() === "" ||
+    !firebaseConfig.messagingSenderId || firebaseConfig.messagingSenderId.trim() === "" ||
+    !firebaseConfig.appId || firebaseConfig.appId.trim() === "";
 
   if (criticalConfigMissing) {
     console.error(
-      "CRITICAL FIREBASE CONFIGURATION ERROR: Firebase configuration values (apiKey, projectId, etc.) are missing or are still set to placeholder values (e.g., 'YOUR_PROJECT_ID', 'YOUR_API_KEY'). " +
+      "CRITICAL FIREBASE CONFIGURATION ERROR: One or more Firebase configuration values (apiKey, projectId, authDomain, etc.) are missing, are still set to placeholder values (e.g., 'YOUR_PROJECT_ID'), or are empty strings. " +
       "This will cause Firebase initialization to fail. " +
       "Please ensure your Firebase environment variables (e.g., NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_PROJECT_ID) are correctly set in your .env file for local development, " +
       "AND ALSO in your Vercel (or other hosting provider) project's environment variable settings for deployed environments. " +
