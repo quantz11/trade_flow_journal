@@ -2,10 +2,10 @@
 // TODO: Replace with your actual Firebase configuration from the Firebase console
 // It's recommended to use environment variables for this sensitive information.
 export const firebaseConfig = {
-  apiKey: "AIzaSyBdUms-4DUFjcgp8TaDmTbwYyyk_lvhycc",
-  authDomain: "tradeflow-journal-96n3q.firebaseapp.com",
-  projectId: "tradeflow-journal-96n3q",
-  storageBucket: "tradeflow-journal-96n3q.firebasestorage.app",
-  messagingSenderId: "930666313881",
-  appId: "1:930666313881:web:773afba4ab9a3c61bd6008"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID",
 };
