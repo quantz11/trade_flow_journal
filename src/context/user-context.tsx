@@ -18,6 +18,7 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
+  console.log("UserProvider component is rendering..."); // Add this exact line
   const [user, setUser] = useState<User | null>(null); // Use Firebase User object
   const [username, setUsername] = useState<string | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true); // To track initial load
@@ -25,7 +26,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname(); // Get the current path
 
   useEffect(() => {
-    console.log("Setting up auth state listener..."); // Add this
     // Access localStorage only on the client side
     if (typeof window !== 'undefined') {
       try {
@@ -39,7 +39,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     
     // Set up Firebase Auth state listener
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      console.log("Auth state changed. User:", firebaseUser); // Add this
       setUser(firebaseUser);
       if (firebaseUser) {
         // You might fetch user details (like a display name) from Firestore here if needed
@@ -47,12 +46,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
       } else {
         setUsername(null);
       }
-      console.log("Setting isLoadingUser to false."); // Add this
       setIsLoadingUser(false); // Authentication state is determined
     });
 
     // Clean up the listener on unmount
-    console.log("Auth state listener setup complete."); // Add this
     return () => unsubscribe();
   }, []);
 
