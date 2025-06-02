@@ -24,29 +24,33 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname(); // Get the current path
 
-  // Inside UserProvider in src/context/user-context.tsx
-    useEffect(() => {
-      console.log("Setting up auth state listener..."); // Add this
-      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-        console.log("Auth state changed. User:", firebaseUser); // Add this
-        setUser(firebaseUser);
-        if (firebaseUser) {
-          setUsername(firebaseUser.displayName || firebaseUser.email);
-          try {
-             localStorage.removeItem(LOCAL_STORAGE_USERNAME_KEY);
-          } catch (error) {
-             console.error("Error removing from localStorage:", error);
-          }
-        } else {
-          setUsername(null);
-        }
-        console.log("Setting isLoadingUser to false."); // Add this
-        setIsLoadingUser(false); // Authentication state is determined
-      });
+  useEffect(() => {
+    // Access localStorage only on the client side
+    if (typeof window !== 'undefined') {
+      try {
+        // Remove localStorage username as Firebase Auth is the source of truth now
+        localStorage.removeItem(LOCAL_STORAGE_USERNAME_KEY);
+      } catch (error) {
+        console.error("Error accessing localStorage:", error);
+        // Potentially in a non-browser environment or localStorage is disabled
+      }
+    }
+    
+    // Set up Firebase Auth state listener
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        // You might fetch user details (like a display name) from Firestore here if needed
+        setUsername(firebaseUser.displayName || firebaseUser.email); // Set username from Firebase user
+      } else {
+        setUsername(null);
+      }
+      setIsLoadingUser(false); // Authentication state is determined
+    });
 
-      console.log("Auth state listener setup complete."); // Add this
-      return () => unsubscribe();
-    }, []);
+    // Clean up the listener on unmount
+    return () => unsubscribe();
+  }, []);
 
   // Firebase Authentication login
   const login = useCallback(async (email: string, password: string) => {
