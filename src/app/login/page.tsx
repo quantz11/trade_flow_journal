@@ -25,6 +25,7 @@ export default function LoginPage() {
   }, []);
 
   // Conditionally access useUser only on the client
+  // Provide a default value for server rendering/before client mount
   const { login, user, isLoadingUser } = isClient ? useUser() : { login: async () => {}, user: null, isLoadingUser: true };
 
 
@@ -35,8 +36,8 @@ export default function LoginPage() {
       router.replace('/journal');
     }
      // Also redirect if we are not loading and there is no user.
-     // This handles cases where a user might land on /login but isn't logged in.
-     // If they are loading, we wait for the auth state to be determined.
+     // This handles cases where a user might land on /login but isn\'t logged in.
+     // If they are loading, we wait for the auth state to be determined.\
      // Only perform this check on the client
      if (isClient && !isLoadingUser && !user) {
         // Stay on login page
