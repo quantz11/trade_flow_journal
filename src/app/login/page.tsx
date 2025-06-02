@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { BarChart3, Loader2 } from 'lucide-react'; 
+import { BarChart3, Loader2 } from 'lucide-react';
 import { useUser } from '@/context/user-context'; // Import useUser
 
 export default function LoginPage() {
@@ -18,29 +17,20 @@ export default function LoginPage() {
   const router = useRouter();
   const { login, user, isLoadingUser } = useUser(); // Use the useUser hook
 
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!name.trim()) {
-      setError('Name cannot be empty.');
-      return;
+  // Redirect if user is already logged in via Firebase Auth
+  useEffect(() => {
+    if (!isLoadingUser && user) {
+      router.replace('/journal');
     }
-    setIsLoading(true);
-    // Simulate a slight delay for UX, then "log in"
-    setTimeout(() => {
-      try {
-        localStorage.setItem(LOCAL_STORAGE_USERNAME_KEY, name.trim());
-        router.push('/journal'); // The AuthWrapper in (app)/layout will pick this up
-      } catch (lsError) {
-        console.error("LocalStorage error:", lsError);
-        setError("Could not save login. Please ensure localStorage is enabled.");
-        setIsLoading(false);
-      }
-    }, 500);
-  };
+     // Also redirect if we are not loading and there is no user.
+     // This handles cases where a user might land on /login but isn't logged in.
+     // If they are loading, we wait for the auth state to be determined.
+     if (!isLoadingUser && !user) {
+        // Stay on login page
+     }
+  }, [router, user, isLoadingUser]); // Depend on user and isLoadingUser
 
-  return (
+
   const handleLogin = async (e: React.FormEvent) => { // Made function async
     e.preventDefault();
     setError('');
@@ -76,7 +66,7 @@ export default function LoginPage() {
   // This prevents rendering the login form before we know the auth status
    if (isLoadingUser) {
      return (
-         <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+         <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">\
              <Loader2 className="h-12 w-12 animate-spin text-primary" />
              <p className="mt-4 text-lg text-muted-foreground">Loading user state...</p>
          </div>
@@ -89,24 +79,10 @@ export default function LoginPage() {
    }
 
 
-  // Redirect if user is already logged in via Firebase Auth
-  useEffect(() => {
-    if (!isLoadingUser && user) {
-      router.replace('/journal');
-    }
-     // Also redirect if we are not loading and there is no user.
-     // This handles cases where a user might land on /login but isn't logged in.
-     // If they are loading, we wait for the auth state to be determined.
-     if (!isLoadingUser && !user) {
-        // Stay on login page
-     }
-  }, [router, user, isLoadingUser]); // Depend on user and isLoadingUser
-
-
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm shadow-xl">
-        <CardHeader className="text-center space-y-2">
+        <CardHeader className="text-center space-space-y-2">
           <div className="flex justify-center items-center mb-3">
             <BarChart3 className="h-12 w-12 text-primary" />
           </div>
@@ -152,7 +128,6 @@ export default function LoginPage() {
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Logging in...
                 </>
               ) : (
-                'Login / Access Journal'
                 'Login' // Updated button text
               )}
             </Button>
