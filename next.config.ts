@@ -3,7 +3,7 @@ import type {NextConfig} from 'next';
 const isProd = process.env.NODE_ENV === 'production';
 
 const nextConfig: NextConfig = {
-  output: 'export',
+  // output: 'export',
   assetPrefix: isProd ? '/trade_flow_journal/' : undefined,
   typescript: {
     ignoreBuildErrors: true,
