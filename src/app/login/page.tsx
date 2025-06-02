@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { BarChart3, Loader2 } from 'lucide-react';
-import { useUser } from '@/context/user-context'; // Import useUser
+import { useUser } from '@/context/user-context'; // Import useUser to access login function
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,92 +16,59 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const { login, user, isLoadingUser } = useUser(); // Get login function and user state
 
-  // State to track if the component has mounted on the client
-  const [isClient, setIsClient] = useState(false);
-
-  // UseEffect to set isClient to true after mounting
   useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Conditionally access useUser only on the client
-  // Provide a default value for server rendering/before client mount
-  const { login, user, isLoadingUser } = isClient ? useUser() : { login: async () => {}, user: null, isLoadingUser: true };
-
-
-  // Redirect if user is already logged in via Firebase Auth
-  useEffect(() => {
-    // Only perform redirection on the client and when auth state is loaded
-    if (isClient && !isLoadingUser && user) {
+    // If user is already logged in (from UserContext), redirect them
+    if (!isLoadingUser && user) {
       router.replace('/journal');
     }
-     // Also redirect if we are not loading and there is no user.
-     // This handles cases where a user might land on /login but isn\'t logged in.
-     // If they are loading, we wait for the auth state to be determined.\
-     // Only perform this check on the client
-     if (isClient && !isLoadingUser && !user) {
-        // Stay on login page
-     }
-  }, [router, user, isLoadingUser, isClient]); // Depend on user, isLoadingUser, and isClient
-
+  }, [user, isLoadingUser, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    // Basic validation
     if (!email.trim() || !password.trim()) {
       setError('Email and password cannot be empty.');
       return;
     }
-
     setIsLoading(true);
     try {
-      await login(email, password);
-      // Redirection is now handled by the useEffect based on user state
-    } catch (firebaseError: any) {
-      console.error("Firebase Login Error:", firebaseError);
-      // Display a user-friendly error message based on the Firebase error code
-      if (firebaseError.code === 'auth/user-not-found') {
-        setError('No user found with this email.');
-      } else if (firebaseError.code === 'auth/wrong-password') {
-        setError('Incorrect password.');
-      } else if (firebaseError.code === 'auth/invalid-email') {
-         setError('Invalid email address format.');
+      await login(email.trim(), password);
+      // Successful login will trigger onAuthStateChanged in UserProvider,
+      // which will update the user state and trigger redirection via the useEffect in UserProvider or LoginPage.
+      // No explicit router.push('/journal') here, as UserProvider handles redirection.
+    } catch (authError: any) {
+      console.error("Login page authError:", authError);
+      if (authError.code === 'auth/invalid-credential' || authError.code === 'auth/user-not-found' || authError.code === 'auth/wrong-password') {
+        setError('Invalid email or password.');
       } else {
-        setError('Login failed. Please check your credentials.');
+        setError('Login failed. Please try again.');
       }
     } finally {
       setIsLoading(false);
     }
   };
-
-  // While the user state is loading or before client mount, show a loading indicator or null
-   if (isLoadingUser || !isClient) {
+  
+  // Prevent rendering the login form if the user is already authenticated and just waiting for redirect
+  if (isLoadingUser || (!isLoadingUser && user)) {
      return (
-         <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-             <p className="mt-4 text-lg text-muted-foreground">{!isClient ? 'Initializing...' : 'Loading user state...'}</p>
-         </div>
-     );
-   }
-
-   // If user is already logged in, the effect will redirect, so we render nothing here
-   if (user) {
-       return null;
-   }
-
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading session...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm shadow-xl">
-        <CardHeader className="text-center space-space-y-2">
+        <CardHeader className="text-center space-y-2">
           <div className="flex justify-center items-center mb-3">
             <BarChart3 className="h-12 w-12 text-primary" />
           </div>
           <CardTitle className="text-3xl font-bold">Welcome to TradeFlow</CardTitle>
-          <CardDescription>Please log in with your email and password.</CardDescription>
+          <CardDescription>Please enter your credentials to access your journal.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
@@ -115,9 +83,10 @@ export default function LoginPage() {
                 className="h-12 text-lg"
                 disabled={isLoading}
                 autoFocus
+                autoComplete="email"
               />
             </div>
-             <div className="space-y-2">
+            <div className="space-y-2">
               <Label htmlFor="password" className="text-base">Password</Label>
               <Input
                 id="password"
@@ -127,11 +96,10 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="h-12 text-lg"
                 disabled={isLoading}
+                autoComplete="current-password"
               />
             </div>
-
-            {error && <p className="text-sm text-destructive text-center mt-4">{error}</p>}
-
+            {error && <p className="text-sm text-destructive text-center">{error}</p>}
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full h-12 text-lg" disabled={isLoading}>
@@ -146,8 +114,8 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
-       <p className="mt-8 text-center text-sm text-muted-foreground">
-        Use a test email and password to log in.
+      <p className="mt-8 text-center text-sm text-muted-foreground">
+        Enter your registered email and password.
       </p>
     </div>
   );

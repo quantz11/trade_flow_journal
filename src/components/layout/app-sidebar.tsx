@@ -10,6 +10,7 @@ import {
   BrainCircuit,
   BarChart3,
   LogOut,
+  LayoutDashboard, // Added
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -25,11 +26,12 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "./theme-toggle";
 import { useUser } from "@/context/user-context";
-import { Button } from "@/components/ui/button"; // Import Button
+import { Button } from "@/components/ui/button"; 
 
 const navItems = [
   { href: "/journal", label: "Journal Entry", icon: BookOpenText },
   { href: "/log", label: "Entry Log", icon: LayoutList },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, // Added
   { href: "/analysis", label: "AI Analysis", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -49,7 +51,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="flex flex-col justify-between">
         <SidebarMenu>
-          {username && navItems.map((item) => ( // Only show nav items if logged in
+          {username && navItems.map((item) => ( 
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton

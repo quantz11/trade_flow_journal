@@ -1,10 +1,10 @@
+
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-// import { SidebarProvider } from "@/components/ui/sidebar"; // Removed SidebarProvider
 import { ThemeProvider } from "@/components/theme-provider";
-import { UserProvider } from '@/context/user-context'; // Import UserProvider
+import { UserProvider } from "@/context/user-context"; // Import UserProvider
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -35,8 +35,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {/* Wrap children with UserProvider */}
-          <UserProvider>
+          <UserProvider> {/* Wrap children with UserProvider */}
             {children}
           </UserProvider>
           <Toaster />

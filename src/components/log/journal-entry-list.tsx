@@ -290,14 +290,15 @@ export function JournalEntryList() {
       try {
         await deleteJournalEntry(idToDelete, username);
         setAllEntries(prev => prev.filter(entry => entry.id !== idToDelete));
-        if (selectedEntry?.id === idToDelete) setSelectedEntry(null);
+        setFilteredEntries(prev => prev.filter(entry => entry.id !== idToDelete)); // Ensure filtered list is also updated
+        if (selectedEntry?.id === idToDelete) setSelectedEntry(null); // Close main dialog if deleted entry was selected
         toast({ title: "Success", description: "Journal entry deleted." });
       } catch (error) {
         console.error("Error deleting entry:", error);
         const errorMessage = error instanceof Error ? error.message : "Failed to delete entry.";
         toast({ title: "Error", description: errorMessage, variant: "destructive" });
       } finally {
-        setEntryToDelete(null);
+        setEntryToDelete(null); // Close confirmation dialog
       }
     });
   };
@@ -477,7 +478,7 @@ export function JournalEntryList() {
           <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
             <div className="flex-grow">
               <CardTitle className="text-2xl">Trade History ({filteredEntries.length} of {allEntries.length})</CardTitle>
-              <CardDescription>A chronological list of your logged trades.</CardDescription>
+              <CardDescription>A chronological list of your logged trades. Click a row to see details.</CardDescription>
             </div>
             <div className="flex flex-wrap gap-2 mt-2 md:mt-0">
               <DropdownMenu>
@@ -552,20 +553,19 @@ export function JournalEntryList() {
                 <TableHeader>
                   <TableRow>
                     {displayableOrderedColumns.map((key) => { const colCfg = allPossibleColumns.find(c => c.key === key); if (!colCfg) return null; let headerText = colCfg.label; if (colCfg.isStandard) { if (key === 'poi') headerText = 'POI'; else if (key === 'pair') headerText = 'Pair'; else if (key === 'session') headerText = 'Session'; else if (key === 'tradingviewChartUrl') headerText = 'TradingView Chart';} return (<TableHead key={key} className="min-w-[120px] px-3 py-2 whitespace-nowrap">{headerText}</TableHead>);})}
-                    <TableHead className="text-right min-w-[100px] sticky right-0 bg-background/95 shadow-sm px-3 py-2 z-10">Actions</TableHead>
+                    {/* Actions column header removed */}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEntries.length === 0 && (<TableRow><TableCell colSpan={displayableOrderedColumns.length + 1} className="text-center h-24">No entries match your current filters.</TableCell></TableRow>)}
+                  {filteredEntries.length === 0 && (<TableRow><TableCell colSpan={displayableOrderedColumns.length || 1} className="text-center h-24">No entries match your current filters.</TableCell></TableRow>)}
                   {filteredEntries.map((entry) => (
-                    <TableRow key={entry.id}>
+                    <TableRow 
+                      key={entry.id} 
+                      onClick={() => setSelectedEntry(entry)}
+                      className="cursor-pointer hover:bg-muted/50"
+                    >
                       {displayableOrderedColumns.map((key) => (<TableCell key={`cell-${key}`} className="px-3 py-2 max-w-xs">{renderCellContent(entry, key)}</TableCell>))}
-                      <TableCell className="text-right sticky right-0 bg-background/95 shadow-sm px-3 py-2 z-10">
-                        <div className="flex justify-end items-center gap-0.5">
-                          <Button variant="ghost" size="icon" onClick={() => setSelectedEntry(entry)} className="hover:text-primary h-8 w-8" aria-label="View Details"><Eye className="h-4 w-4" /></Button>
-                           <Button variant="ghost" size="icon" onClick={() => setEntryToDelete(entry)} className="hover:text-destructive h-8 w-8" aria-label="Delete Entry"><Trash2 className="h-4 w-4" /></Button>
-                        </div>
-                      </TableCell>
+                      {/* Actions cell removed */}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -593,11 +593,44 @@ export function JournalEntryList() {
                  {fetchedCustomColumns.length > 0 && fetchedCustomColumns.filter(cc => visibleColumns.has(cc.id)).length === 0 && (<p className="text-sm text-muted-foreground text-center py-4">All custom columns are currently hidden. You can manage visibility via the "Columns" button on the log page.</p>)}
               </div>
             </div>
-            <DialogFooter className="shrink-0 px-6 py-4 border-t sm:justify-between">
-              <Button variant="outline" onClick={() => handleEditEntry(selectedEntry?.id)} className="sm:mr-auto" disabled={isSavingCustomData || isDeletingEntry}><Pencil className="mr-2 h-4 w-4" /> Edit Full Entry</Button>
-              <div className="flex gap-2 mt-2 sm:mt-0">
-                <Button variant="outline" onClick={() => setSelectedEntry(null)} disabled={isSavingCustomData || isDeletingEntry}>Close</Button>
-                {fetchedCustomColumns.filter(cc => visibleColumns.has(cc.id)).length > 0 && (<Button onClick={handleSaveCustomData} disabled={isSavingCustomData || isDeletingEntry}>{isSavingCustomData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Custom Data</Button>)}
+            <DialogFooter className="shrink-0 px-6 py-4 border-t flex flex-col sm:flex-row sm:justify-between gap-2">
+              <div className="flex gap-2">
+                 <Button 
+                    variant="outline" 
+                    onClick={() => handleEditEntry(selectedEntry?.id)} 
+                    disabled={isSavingCustomData || isDeletingEntry}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" /> Edit Full Entry
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => {
+                      if (selectedEntry) {
+                        setEntryToDelete(selectedEntry); 
+                      }
+                    }}
+                    disabled={isSavingCustomData || isDeletingEntry}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete Entry
+                  </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setSelectedEntry(null)} 
+                  disabled={isSavingCustomData || isDeletingEntry}
+                >
+                  Close
+                </Button>
+                {fetchedCustomColumns.filter(cc => visibleColumns.has(cc.id)).length > 0 && (
+                  <Button 
+                    onClick={handleSaveCustomData} 
+                    disabled={isSavingCustomData || isDeletingEntry}
+                  >
+                    {isSavingCustomData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} 
+                    Save Custom Data
+                  </Button>
+                )}
               </div>
             </DialogFooter>
           </DialogContent>
@@ -613,3 +646,4 @@ export function JournalEntryList() {
     </>
   );
 }
+    
