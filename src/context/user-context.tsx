@@ -1,8 +1,7 @@
 
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User } from 'firebase/auth';
 
@@ -23,6 +22,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [username, setUsername] = useState<string | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true); // To track initial load
   const router = useRouter();
+  const pathname = usePathname(); // Get the current path
 
   useEffect(() => {
     // Try to load username from localStorage on initial mount
@@ -85,9 +85,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
    useEffect(() => {
        // Only redirect after the initial loading is complete
        if (!isLoadingUser) {
-           const requiresAuth = router.pathname !== '/login' && router.pathname !== '/signup'; // Adjust based on your public routes
+           const requiresAuth = pathname !== '/login' && pathname !== '/signup'; // Adjust based on your public routes
            if (requiresAuth && !user) {
-               router.push('/login');
+               router.push('/login'); // Keep router.push for navigation
            } else if (user && (router.pathname === '/login' || router.pathname === '/signup')) {
                router.push('/journal'); // Or your desired post-login page
            }
