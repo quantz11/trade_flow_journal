@@ -95,7 +95,17 @@ const analyzeTradingPatternsFlow = ai.defineFlow(
     outputSchema: TradingPatternOutputSchema,
   },
   async input => {
+    // The prompt() call itself will throw an error if there's a network issue
+    // or an API key problem that Genkit can detect.
     const {output} = await prompt(input);
-    return output!;
+
+    if (!output) {
+      // This condition handles cases where the prompt executed successfully
+      // but the AI model did not return any structured output,
+      // or the output did not match the expected schema.
+      console.error('TradingPatternAnalysisFlow: AI Prompt returned successfully but the output was empty or not in the expected format.');
+      throw new Error('AI model generated an empty or invalid response. The prompt might need adjustment or the input data could be problematic.');
+    }
+    return output;
   }
 );
