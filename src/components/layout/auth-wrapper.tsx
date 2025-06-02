@@ -12,29 +12,24 @@ interface AuthWrapperProps {
 }
 
 export function AuthWrapper({ children }: AuthWrapperProps) {
-  const { username, login, isLoadingUser } = useUser();
+  const { username, isLoadingUser } = useUser(); // Removed 'login' as it's not used here for manual restore
   const router = useRouter();
   const pathname = usePathname();
   const [isSeeding, setIsSeeding] = useState(false);
 
   useEffect(() => {
     if (isLoadingUser) {
-      return; // Wait for UserProvider to load initial user state
+      return; // Wait for UserProvider to load initial user state (from onAuthStateChanged)
     }
 
-    if (!username) {
-      // No user in context, try to load from localStorage (UserProvider also does this, but this is a fallback/guard)
-      const storedUsername = localStorage.getItem('tradeflow_username');
-      if (storedUsername) {
-        login(storedUsername, false); // Log in without redirecting immediately
-      } else {
-        // No user in context or localStorage, redirect to login
-        if (pathname !== '/login') { // /login is outside this layout
-          router.push('/login');
-        }
-      }
+    // If user state is resolved (isLoadingUser is false) and there's no username,
+    // and we are not on a public path, redirect to login.
+    // Firebase's onAuthStateChanged in UserProvider is the source of truth for session restoration.
+    if (!username && pathname !== '/login') { // Ensure /login is considered public
+        router.push('/login');
     }
-  }, [username, login, router, pathname, isLoadingUser]);
+    
+  }, [username, isLoadingUser, router, pathname]);
 
   useEffect(() => {
     if (username && !isLoadingUser) {
