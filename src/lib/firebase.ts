@@ -1,7 +1,7 @@
 
-import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getFirestore, Firestore } from "firebase/firestore";
-import { getAuth, Auth } from "firebase/auth";
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getAuth, type Auth } from "firebase/auth";
 import { firebaseConfig } from "./config";
 
 let app: FirebaseApp;
@@ -9,18 +9,20 @@ let dbInstance: Firestore; // Use a local variable for initialization
 let authInstance: Auth;
 
 try {
-  // Check for common placeholder values which indicate missing configuration
-  if (
-    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID" ||
-    !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY"
-  ) {
+  // Check for common placeholder values or missing configuration
+  const criticalConfigMissing =
+    !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" || firebaseConfig.apiKey.trim() === "" ||
+    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID" || firebaseConfig.projectId.trim() === "";
+
+  if (criticalConfigMissing) {
     console.error(
-      "Firebase configuration in src/lib/config.ts appears to be using placeholder values (e.g., 'YOUR_PROJECT_ID', 'YOUR_API_KEY') " +
-      "or essential values are missing. Please ensure your Firebase environment variables " +
-      "(e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_API_KEY in your .env or environment) " +
-      "are correctly set. Firebase initialization will likely fail."
+      "CRITICAL FIREBASE CONFIGURATION ERROR: Firebase configuration values (apiKey, projectId, etc.) are missing or are still set to placeholder values (e.g., 'YOUR_PROJECT_ID', 'YOUR_API_KEY'). " +
+      "This will cause Firebase initialization to fail. " +
+      "Please ensure your Firebase environment variables (e.g., NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_PROJECT_ID) are correctly set in your .env file for local development, " +
+      "AND ALSO in your Vercel (or other hosting provider) project's environment variable settings for deployed environments. " +
+      "Current config being checked:", firebaseConfig
     );
-    // Firebase SDK will throw its own specific error below if config is invalid.
+    // Firebase SDK will likely throw its own specific error below, but this log helps pinpoint the issue.
   }
 
   if (getApps().length === 0) {
@@ -48,18 +50,15 @@ try {
     "CRITICAL: Firebase/Firestore initialization failed in src/lib/firebase.ts. Error:",
     errorMessage,
     // Log the original error object if available and helpful
-    e instanceof Error ? e.stack : '' 
+    e instanceof Error ? e.stack : ''
   );
   // Re-throw a more user-friendly error that guides towards checking config.
   throw new Error(
     `Firebase/Firestore initialization failed. This is often due to incorrect Firebase configuration ` +
-    `(check your .env file and src/lib/config.ts) or Firestore not being enabled for your project. ` +
+    `(check your .env file AND your hosting provider's environment variable settings) or Firestore not being enabled for your project. ` +
     `Original error: ${errorMessage}`
   );
 }
 
 // Export the initialized instances.
-// If an error was thrown above, the module loading would have stopped,
-// and this `db` would effectively be uninitialized from the perspective of importers,
-// leading to the `!db` check in firestore-service.ts to fail.
 export { app, dbInstance as db, authInstance as auth }; // Export auth
