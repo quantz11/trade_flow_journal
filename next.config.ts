@@ -4,7 +4,7 @@ const isProd = process.env.NODE_ENV === 'production';
 
 const nextConfig: NextConfig = {
   // output: 'export',
-  assetPrefix: isProd ? '/trade_flow_journal/' : undefined,
+  // assetPrefix: isProd ? '/trade_flow_journal/' : undefined,
   typescript: {
     ignoreBuildErrors: true,
   },

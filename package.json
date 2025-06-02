@@ -4,13 +4,10 @@
   "homepage": "https://quantz11.github.io/trade_flow_journal",
   "private": true,
   "scripts": {
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d out",
     "dev": "next dev --turbopack -p 9002",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
-    "build": "cross-env NODE_ENV=production next build",
-    "builddev": "next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
