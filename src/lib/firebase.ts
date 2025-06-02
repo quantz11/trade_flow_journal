@@ -1,10 +1,12 @@
 
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { getAuth, Auth } from "firebase/auth";
 import { firebaseConfig } from "./config";
 
 let app: FirebaseApp;
 let dbInstance: Firestore; // Use a local variable for initialization
+let authInstance: Auth;
 
 try {
   // Check for common placeholder values which indicate missing configuration
@@ -26,7 +28,7 @@ try {
   } else {
     app = getApp();
   }
-  
+
   dbInstance = getFirestore(app);
 
   if (!dbInstance) {
@@ -38,6 +40,7 @@ try {
       "or the Firebase app configuration is invalid."
     );
   }
+  authInstance = getAuth(app); // Get Auth instance
 
 } catch (e) {
   const errorMessage = e instanceof Error ? e.message : String(e);
@@ -59,4 +62,4 @@ try {
 // If an error was thrown above, the module loading would have stopped,
 // and this `db` would effectively be uninitialized from the perspective of importers,
 // leading to the `!db` check in firestore-service.ts to fail.
-export { app, dbInstance as db };
+export { app, dbInstance as db, authInstance as auth }; // Export auth
