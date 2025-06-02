@@ -268,7 +268,8 @@ export function JournalEntryList() {
         await updateJournalEntry(selectedEntry.id!, username, { customData: editableCustomData });
         toast({ title: "Success", description: "Custom data saved." });
         setAllEntries(prev => prev.map(e => e.id === selectedEntry.id ? { ...e, customData: { ...editableCustomData } } : e));
-        setSelectedEntry(prev => prev ? {...prev, customData: {...editableCustomData}} : null);
+        // setSelectedEntry(prev => prev ? {...prev, customData: {...editableCustomData}} : null); // Keep dialog open for user to see success
+        setSelectedEntry(null); // Close dialog after successful save
       } catch (error) {
         console.error("Error saving custom data:", error);
         const errorMessage = error instanceof Error ? error.message : "Failed to save custom data.";
@@ -290,15 +291,15 @@ export function JournalEntryList() {
       try {
         await deleteJournalEntry(idToDelete, username);
         setAllEntries(prev => prev.filter(entry => entry.id !== idToDelete));
-        setFilteredEntries(prev => prev.filter(entry => entry.id !== idToDelete)); // Ensure filtered list is also updated
-        if (selectedEntry?.id === idToDelete) setSelectedEntry(null); // Close main dialog if deleted entry was selected
+        setFilteredEntries(prev => prev.filter(entry => entry.id !== idToDelete)); 
+        if (selectedEntry?.id === idToDelete) setSelectedEntry(null);
         toast({ title: "Success", description: "Journal entry deleted." });
       } catch (error) {
         console.error("Error deleting entry:", error);
         const errorMessage = error instanceof Error ? error.message : "Failed to delete entry.";
         toast({ title: "Error", description: errorMessage, variant: "destructive" });
       } finally {
-        setEntryToDelete(null); // Close confirmation dialog
+        setEntryToDelete(null); 
       }
     });
   };
@@ -312,7 +313,7 @@ export function JournalEntryList() {
       try {
         await deleteAllJournalEntriesForUser(username);
         setAllEntries([]);
-        setFilteredEntries([]); // Ensure UI updates immediately
+        setFilteredEntries([]); 
         toast({ title: "Success", description: "All trade history has been deleted." });
       } catch (error) {
         console.error("Error deleting all entries:", error);
@@ -435,6 +436,8 @@ export function JournalEntryList() {
   }
 
   const displayableOrderedColumns = columnOrder.filter(key => visibleColumns.has(key));
+  const colSpanForMessages = displayableOrderedColumns.length > 0 ? displayableOrderedColumns.length : 1;
+
 
   return (
     <>
@@ -549,15 +552,14 @@ export function JournalEntryList() {
           <CardContent>
             <div className="relative w-full overflow-auto">
               <Table>
-                <TableCaption>A list of your recent trades.</TableCaption>
+                <TableCaption>A list of your recent trades. Click a row to view details.</TableCaption>
                 <TableHeader>
                   <TableRow>
                     {displayableOrderedColumns.map((key) => { const colCfg = allPossibleColumns.find(c => c.key === key); if (!colCfg) return null; let headerText = colCfg.label; if (colCfg.isStandard) { if (key === 'poi') headerText = 'POI'; else if (key === 'pair') headerText = 'Pair'; else if (key === 'session') headerText = 'Session'; else if (key === 'tradingviewChartUrl') headerText = 'TradingView Chart';} return (<TableHead key={key} className="min-w-[120px] px-3 py-2 whitespace-nowrap">{headerText}</TableHead>);})}
-                    {/* Actions column header removed */}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEntries.length === 0 && (<TableRow><TableCell colSpan={displayableOrderedColumns.length || 1} className="text-center h-24">No entries match your current filters.</TableCell></TableRow>)}
+                  {filteredEntries.length === 0 && (<TableRow><TableCell colSpan={colSpanForMessages} className="text-center h-24">No entries match your current filters.</TableCell></TableRow>)}
                   {filteredEntries.map((entry) => (
                     <TableRow 
                       key={entry.id} 
@@ -565,7 +567,6 @@ export function JournalEntryList() {
                       className="cursor-pointer hover:bg-muted/50"
                     >
                       {displayableOrderedColumns.map((key) => (<TableCell key={`cell-${key}`} className="px-3 py-2 max-w-xs">{renderCellContent(entry, key)}</TableCell>))}
-                      {/* Actions cell removed */}
                     </TableRow>
                   ))}
                 </TableBody>

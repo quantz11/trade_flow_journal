@@ -10,7 +10,7 @@ import {
   BrainCircuit,
   BarChart3,
   LogOut,
-  LayoutDashboard, // Added
+  LayoutDashboard, 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -29,9 +29,9 @@ import { useUser } from "@/context/user-context";
 import { Button } from "@/components/ui/button"; 
 
 const navItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, // Moved to top
   { href: "/journal", label: "Journal Entry", icon: BookOpenText },
   { href: "/log", label: "Entry Log", icon: LayoutList },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, // Added
   { href: "/analysis", label: "AI Analysis", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -55,7 +55,7 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton
-                  isActive={pathname === item.href || (item.href !== "/journal" && pathname.startsWith(item.href))}
+                  isActive={pathname === item.href || (item.href !== "/journal" && item.href !== "/dashboard" && pathname.startsWith(item.href))}
                   tooltip={{ children: item.label, className:"bg-card text-card-foreground border-border"}}
                   className="justify-start"
                 >
