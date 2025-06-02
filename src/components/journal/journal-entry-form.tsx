@@ -36,10 +36,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { JournalEntryField, FieldOption, JournalFormData, JournalEntry } from "@/types";
-import { addJournalEntry, getFieldOptions, getFieldDefaultValue, updateJournalEntry } from "@/lib/firestore-service";
+import { addJournalEntry, getUserSettingsData, updateJournalEntry } from "@/lib/firestore-service"; // Removed getFieldOptions, getFieldDefaultValue
 import { FIELD_LABELS, MULTI_SELECT_FIELDS, INITIAL_OPTIONS } from "@/lib/constants";
 import { MultiSelectComboBox, MultiSelectItem } from "@/components/common/multi-select-combobox";
-import { useUser } from "@/context/user-context"; // Import useUser
+import { useUser } from "@/context/user-context";
+import type { DocumentData } from "firebase/firestore";
 
 const formSchema = z.object({
   pair: z.string().min(1, "Pair is required."),
@@ -79,7 +80,7 @@ interface JournalEntryFormProps {
 export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const { username } = useUser(); // Get username
+  const { username } = useUser();
   const [isPending, startTransition] = useTransition();
   const isEditMode = !!entryToEdit;
 
@@ -90,8 +91,8 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
     });
     return initial;
   });
-  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
-  const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+
 
   const initialFormValues: JournalFormValues = useMemo(() => ({
     pair: entryToEdit?.pair || "",
@@ -118,24 +119,27 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
 
   useEffect(() => {
     if (!username) {
-      setIsLoadingOptions(false);
-      setIsLoadingDefaults(false);
-      return; // Don't load options/defaults if no user
+      setIsLoadingSettings(false);
+      return; 
     }
 
     async function loadFormSetup() {
-      setIsLoadingOptions(true);
-      if (!isEditMode) setIsLoadingDefaults(true); else setIsLoadingDefaults(false);
+      setIsLoadingSettings(true);
 
       try {
+        const userSettingsData: DocumentData | null = await getUserSettingsData(username);
         const fetchedOptions: Record<JournalEntryField, FieldOption[]> = {} as any;
+        
         for (const fieldName of fieldNames) {
           if (fieldName === 'rrRatio' || fieldName === 'tradingviewChartUrl') {
-            fetchedOptions[fieldName] = [];
+            fetchedOptions[fieldName] = []; // These fields don't have selectable options
             continue;
           }
-          const opts = await getFieldOptions(fieldName, username); // Pass username
-          fetchedOptions[fieldName] = opts.map(opt => ({ value: opt, label: opt }));
+          const optionsKey = `fieldOptions_${fieldName}`;
+          const opts = (userSettingsData && userSettingsData[optionsKey] && Array.isArray(userSettingsData[optionsKey])) 
+                       ? userSettingsData[optionsKey] 
+                       : (INITIAL_OPTIONS[fieldName] || []);
+          fetchedOptions[fieldName] = opts.map((opt: string) => ({ value: opt, label: opt }));
         }
         setOptions(fetchedOptions);
 
@@ -159,22 +163,28 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
           form.reset(editData);
         } else {
           const effectiveDefaults: Partial<JournalFormValues> = { ...initialFormValues, date: new Date(), rrRatio: undefined, tp: [], sl: [], psychology: [], premarketCondition: [] };
-          for (const field of fieldNames) {
-              if (field === 'date' || field === 'rrRatio' || field === 'tradingviewChartUrl') continue;
-              const storedDefault = await getFieldDefaultValue(field, username); // Pass username
-              if (storedDefault !== undefined && storedDefault !== null) {
-                  if (MULTI_SELECT_FIELDS.includes(field)) {
-                      (effectiveDefaults as any)[field] = Array.isArray(storedDefault) ? storedDefault : [String(storedDefault)];
-                  } else {
-                      (effectiveDefaults as any)[field] = String(storedDefault);
-                  }
-              } else if (MULTI_SELECT_FIELDS.includes(field)) {
-                  (effectiveDefaults as any)[field] = [];
-              }
-          }
-          const rrDefault = await getFieldDefaultValue('rrRatio', username); // Pass username
-          if (typeof rrDefault === 'number') {
-            effectiveDefaults.rrRatio = rrDefault;
+          if (userSettingsData) {
+            for (const field of fieldNames) {
+                if (field === 'date' || field === 'rrRatio' || field === 'tradingviewChartUrl') continue;
+                
+                const defaultKey = `fieldDefault_${field}`;
+                const storedDefault = userSettingsData.hasOwnProperty(defaultKey) ? userSettingsData[defaultKey] : undefined;
+
+                if (storedDefault !== undefined && storedDefault !== null) {
+                    if (MULTI_SELECT_FIELDS.includes(field)) {
+                        (effectiveDefaults as any)[field] = Array.isArray(storedDefault) ? storedDefault : [String(storedDefault)];
+                    } else {
+                        (effectiveDefaults as any)[field] = String(storedDefault);
+                    }
+                } else if (MULTI_SELECT_FIELDS.includes(field)) {
+                    (effectiveDefaults as any)[field] = []; // Ensure multi-select fields default to empty array
+                }
+            }
+            const rrDefaultKey = `fieldDefault_rrRatio`;
+            const rrDefault = userSettingsData.hasOwnProperty(rrDefaultKey) ? userSettingsData[rrDefaultKey] : undefined;
+            if (typeof rrDefault === 'number') {
+              effectiveDefaults.rrRatio = rrDefault;
+            }
           }
           form.reset(effectiveDefaults as JournalFormValues);
         }
@@ -182,21 +192,17 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
         console.error("Failed to load form setup:", error);
         toast({ title: "Error", description: "Could not load form options or defaults.", variant: "destructive" });
       } finally {
-        setIsLoadingOptions(false);
-        if (!isEditMode) setIsLoadingDefaults(false);
+        setIsLoadingSettings(false);
       }
     }
     loadFormSetup();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entryToEdit, isEditMode, toast, username]); // Add username to dependency array
+  }, [entryToEdit, isEditMode, toast, username]); 
 
   useEffect(() => {
-    // This effect handles resetting the form when entryToEdit changes or when switching from edit to new.
-    // It should ideally re-evaluate defaults based on the NEW username context if that changes,
-    // but `username` is already in the main `loadFormSetup` effect.
     if (isEditMode && entryToEdit) {
       form.reset({
-        ...initialFormValues, // Use the memoized initial values for the current entryToEdit
+        ...initialFormValues, 
         date: new Date(entryToEdit.date),
         premarketCondition: Array.isArray(entryToEdit.premarketCondition) ? entryToEdit.premarketCondition : [],
         rrRatio: entryToEdit.rrRatio || undefined,
@@ -204,9 +210,8 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
         sl: entryToEdit.sl || [],
         psychology: entryToEdit.psychology || [],
       });
-    } else if (!isEditMode && username) { // Only reset to defaults for new entries IF a user is logged in
-      // The key prop on JournalEntryForm forces a re-mount for new entries.
-      // The `loadFormSetup` effect will handle loading defaults for the current `username`.
+    } else if (!isEditMode && username) {
+      // Default loading for new entries is handled by the main loadFormSetup effect
     }
   }, [entryToEdit, isEditMode, form, initialFormValues, username]);
 
@@ -220,7 +225,7 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
       try {
         const dataToSave: JournalFormData = {
           ...data,
-          username: username, // Add username
+          username: username, 
           rrRatio: data.rrRatio === null || data.rrRatio === undefined ? undefined : Number(data.rrRatio),
           tradingviewChartUrl: data.tradingviewChartUrl?.trim() === "" ? undefined : data.tradingviewChartUrl,
           psychology: data.psychology || [],
@@ -228,34 +233,40 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
         };
 
         if (isEditMode && entryToEdit?.id) {
-          await updateJournalEntry(entryToEdit.id, username, dataToSave); // Pass username
+          await updateJournalEntry(entryToEdit.id, username, dataToSave); 
           toast({ title: "Success!", description: "Journal entry updated." });
           router.push('/log');
         } else {
-          await addJournalEntry(dataToSave, username); // Pass username
+          await addJournalEntry(dataToSave, username); 
           toast({ title: "Success!", description: "Journal entry saved." });
-          // Reset form to defaults for the current user
+          
+          // Reset form to defaults for the current user after successful new entry
+          const userSettingsData: DocumentData | null = await getUserSettingsData(username);
           const effectiveDefaults: Partial<JournalFormValues> = {
             pair: "", date: new Date(), type: "", premarketCondition: [], poi: [], reactionToPoi: [],
             entryType: "", session: "", psychology: [], outcome: "",
             rrRatio: undefined, tradingviewChartUrl: "", tp: [], sl: []
           };
-          for (const field of fieldNames) {
-              if (field === 'date' || field === 'rrRatio' || field === 'tradingviewChartUrl') continue;
-              const storedDefault = await getFieldDefaultValue(field, username); // Pass username
-              if (storedDefault !== undefined && storedDefault !== null) {
-                   if (MULTI_SELECT_FIELDS.includes(field)) {
-                      (effectiveDefaults as any)[field] = Array.isArray(storedDefault) ? storedDefault : [String(storedDefault)];
-                  } else {
-                      (effectiveDefaults as any)[field] = String(storedDefault);
-                  }
-              } else if (MULTI_SELECT_FIELDS.includes(field)) {
-                 (effectiveDefaults as any)[field] = [];
-              }
-          }
-          const rrDefault = await getFieldDefaultValue('rrRatio', username); // Pass username
-          if (typeof rrDefault === 'number') {
-            effectiveDefaults.rrRatio = rrDefault;
+          if (userSettingsData) {
+            for (const field of fieldNames) {
+                if (field === 'date' || field === 'rrRatio' || field === 'tradingviewChartUrl') continue;
+                const defaultKey = `fieldDefault_${field}`;
+                const storedDefault = userSettingsData.hasOwnProperty(defaultKey) ? userSettingsData[defaultKey] : undefined;
+                if (storedDefault !== undefined && storedDefault !== null) {
+                     if (MULTI_SELECT_FIELDS.includes(field)) {
+                        (effectiveDefaults as any)[field] = Array.isArray(storedDefault) ? storedDefault : [String(storedDefault)];
+                    } else {
+                        (effectiveDefaults as any)[field] = String(storedDefault);
+                    }
+                } else if (MULTI_SELECT_FIELDS.includes(field)) {
+                   (effectiveDefaults as any)[field] = [];
+                }
+            }
+            const rrDefaultKey = `fieldDefault_rrRatio`;
+            const rrDefault = userSettingsData.hasOwnProperty(rrDefaultKey) ? userSettingsData[rrDefaultKey] : undefined;
+            if (typeof rrDefault === 'number') {
+              effectiveDefaults.rrRatio = rrDefault;
+            }
           }
           form.reset({...effectiveDefaults, date: new Date()} as JournalFormValues);
           // router.push('/log'); // Removed redirection to log page after successful new entry
@@ -267,7 +278,7 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
     });
   };
 
-  if (!username) { // If no user, show a message or a disabled form
+  if (!username) { 
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
         <p className="text-lg text-muted-foreground mb-4">Please log in to create or edit journal entries.</p>
@@ -276,11 +287,11 @@ export function JournalEntryForm({ entryToEdit }: JournalEntryFormProps) {
     );
   }
 
-  if (isLoadingOptions || isLoadingDefaults) {
+  if (isLoadingSettings) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2">Loading form options and defaults for {username}...</p>
+        <p className="ml-2">Loading form settings for {username}...</p>
       </div>
     );
   }

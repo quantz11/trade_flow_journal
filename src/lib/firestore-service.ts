@@ -135,6 +135,9 @@ export async function getJournalEntryById(id: string, username: string): Promise
 export async function getJournalEntries(username: string): Promise<JournalEntry[]> {
   if (!db) throw new Error("Firestore is not initialized.");
   if (!username) {
+    // Changed: Throw error directly to be caught by UI
+    // console.warn("Username is not available, cannot fetch journal entries.");
+    // return [];
     throw new Error("Username is required to fetch journal entries.");
   }
   try {
@@ -169,6 +172,7 @@ export async function getJournalEntries(username: string): Promise<JournalEntry[
     });
   } catch (error) {
     console.error(`Error fetching journal entries for user ${username}: `, error);
+    // Re-throw the error so the caller can handle it and inform the user
     throw new Error(formatFirestoreError(`Failed to fetch journal entries for user ${username}.`, error));
   }
 }
@@ -257,16 +261,33 @@ export async function deleteAllJournalEntriesForUser(username: string): Promise<
 
 // --- User Settings (Options and Defaults for Form Fields) ---
 
-async function getUserSettingsDoc(username: string) {
+async function getUserSettingsDocRef(username: string) { // Renamed from getUserSettingsDoc to avoid confusion
   if (!db) throw new Error("Firestore is not initialized.");
   if (!username) throw new Error("Username is required for settings.");
   return doc(db, FIRESTORE_COLLECTIONS.USER_SETTINGS, username);
 }
 
+export async function getUserSettingsData(username: string): Promise<DocumentData | null> {
+  if (!db) throw new Error("Firestore is not initialized.");
+  if (!username) throw new Error("Username is required for settings.");
+  try {
+    const userSettingsRef = await getUserSettingsDocRef(username);
+    const docSnap = await getDoc(userSettingsRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+    return null; // Document doesn't exist, seedAllInitialSettings should handle creation
+  } catch (error) {
+    console.error(`Error fetching user settings for ${username}: `, error);
+    throw new Error(formatFirestoreError(`Failed to fetch user settings.`, error));
+  }
+}
+
+
 export async function getFieldOptions(fieldName: JournalEntryField, username: string): Promise<string[]> {
   if (fieldName === 'rrRatio' || fieldName === 'tradingviewChartUrl') return [];
   try {
-    const userSettingsRef = await getUserSettingsDoc(username);
+    const userSettingsRef = await getUserSettingsDocRef(username);
     const docSnap = await getDoc(userSettingsRef);
     const fieldKey = `fieldOptions_${fieldName}`;
 
@@ -276,6 +297,7 @@ export async function getFieldOptions(fieldName: JournalEntryField, username: st
         return data[fieldKey];
       }
     }
+    // Fallback and seed if missing - seedAllInitialSettings should ideally prevent this path often
     const initial = INITIAL_OPTIONS[fieldName] || [];
     await setDoc(userSettingsRef, { [fieldKey]: initial }, { merge: true });
     return initial;
@@ -287,7 +309,7 @@ export async function getFieldOptions(fieldName: JournalEntryField, username: st
 
 export async function getFieldDefaultValue(fieldName: JournalEntryField, username: string): Promise<string | string[] | number | undefined> {
   try {
-    const userSettingsRef = await getUserSettingsDoc(username);
+    const userSettingsRef = await getUserSettingsDocRef(username);
     const docSnap = await getDoc(userSettingsRef);
     const fieldKey = `fieldDefault_${fieldName}`;
 
@@ -297,6 +319,7 @@ export async function getFieldDefaultValue(fieldName: JournalEntryField, usernam
         return data[fieldKey];
       }
     }
+    // No seeding for defaults here, just return undefined if not set
     return undefined;
   } catch (error) {
     console.error(`Error fetching default for ${fieldName} for user ${username}: `, error);
@@ -306,7 +329,7 @@ export async function getFieldDefaultValue(fieldName: JournalEntryField, usernam
 
 export async function setFieldDefaultValue(fieldName: JournalEntryField, username: string, defaultValue: string | string[] | number | null): Promise<void> {
   try {
-    const userSettingsRef = await getUserSettingsDoc(username);
+    const userSettingsRef = await getUserSettingsDocRef(username);
     const fieldKey = `fieldDefault_${fieldName}`;
     const updateData = defaultValue === null || defaultValue === undefined ? { [fieldKey]: deleteField() } : { [fieldKey]: defaultValue };
     await setDoc(userSettingsRef, updateData, { merge: true });
@@ -319,7 +342,7 @@ export async function setFieldDefaultValue(fieldName: JournalEntryField, usernam
 export async function updateFieldOptions(fieldName: JournalEntryField, username: string, options: string[]): Promise<void> {
   if (fieldName === 'rrRatio' || fieldName === 'tradingviewChartUrl') return;
   try {
-    const userSettingsRef = await getUserSettingsDoc(username);
+    const userSettingsRef = await getUserSettingsDocRef(username);
     const fieldKey = `fieldOptions_${fieldName}`;
     await setDoc(userSettingsRef, { [fieldKey]: options }, { merge: true });
   } catch (error) {
@@ -338,7 +361,6 @@ export async function addOptionToField(fieldName: JournalEntryField, username: s
       await updateFieldOptions(fieldName, username, [...currentOptions, trimmedOption]);
     }
   } catch (error) {
-    // getFieldOptions can throw, so this will propagate its formatted error
     throw error;
   }
 }
@@ -360,7 +382,6 @@ export async function removeOptionFromField(fieldName: JournalEntryField, userna
       await setFieldDefaultValue(fieldName, username, updatedDefault.length > 0 ? updatedDefault : null);
     }
   } catch (error) {
-    // Errors from getFieldOptions, getFieldDefaultValue, setFieldDefaultValue will propagate
     throw error;
   }
 }
@@ -399,7 +420,7 @@ export async function seedAllInitialSettings(username: string): Promise<void> {
   }
   console.log(`Attempting to seed initial settings for user: ${username}...`);
   try {
-    const userSettingsRef = await getUserSettingsDoc(username);
+    const userSettingsRef = await getUserSettingsDocRef(username); // Use renamed function
     const userSettingsSnap = await getDoc(userSettingsRef);
     const userSettingsData = userSettingsSnap.exists() ? userSettingsSnap.data() : {};
     
@@ -424,7 +445,6 @@ export async function seedAllInitialSettings(username: string): Promise<void> {
     }
   } catch (error) {
     console.error(`Error seeding initial settings for user ${username}:`, error);
-    // Do not throw here, as seeding is a background convenience. Log and continue.
   }
 }
 

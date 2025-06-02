@@ -13,16 +13,17 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { JournalEntryField } from "@/types";
 import {
-  getFieldOptions,
+  getUserSettingsData, // Use this new function
   addOptionToField,
   removeOptionFromField,
   editOptionInField,
-  getFieldDefaultValue,
   setFieldDefaultValue
+  // getFieldOptions, getFieldDefaultValue are no longer directly needed for initial load here
 } from "@/lib/firestore-service";
-import { MULTI_SELECT_FIELDS } from "@/lib/constants";
+import { MULTI_SELECT_FIELDS, INITIAL_OPTIONS } from "@/lib/constants";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useUser } from "@/context/user-context"; // Import useUser
+import { useUser } from "@/context/user-context";
+import type { DocumentData } from "firebase/firestore";
 
 interface SettingsManagerProps {
   fieldName: JournalEntryField;
@@ -34,13 +35,12 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
   const [newOption, setNewOption] = useState("");
   const [editingOption, setEditingOption] = useState<{ old: string; current: string } | null>(null);
 
-  const [currentDefault, setCurrentDefault] = useState<string | string[] | undefined>(undefined);
-  const [isLoadingDefault, setIsLoadingDefault] = useState(true);
+  const [currentDefault, setCurrentDefault] = useState<string | string[] | number | undefined>(undefined);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
-  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isMutating, startMutation] = useTransition();
   const { toast } = useToast();
-  const { username } = useUser(); // Get username
+  const { username } = useUser(); 
 
   const isMultiSelect = MULTI_SELECT_FIELDS.includes(fieldName);
   const isInputOnlyField = fieldName === 'rrRatio' || fieldName === 'tradingviewChartUrl';
@@ -48,38 +48,38 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
 
   const fetchAllData = useCallback(async () => {
     if (!username) {
-      setIsLoadingOptions(false);
-      setIsLoadingDefault(false);
+      setIsLoadingSettings(false);
       setOptions([]);
       setCurrentDefault(undefined);
       return;
     }
 
-    setIsLoadingOptions(true);
-    setIsLoadingDefault(true);
+    setIsLoadingSettings(true);
 
     try {
+      const userSettingsData: DocumentData | null = await getUserSettingsData(username);
+
       if (!isInputOnlyField) {
-        const opts = await getFieldOptions(fieldName, username);
+        const fieldOptionsKey = `fieldOptions_${fieldName}`;
+        const opts = (userSettingsData && userSettingsData[fieldOptionsKey] && Array.isArray(userSettingsData[fieldOptionsKey])) 
+                     ? userSettingsData[fieldOptionsKey] 
+                     : (INITIAL_OPTIONS[fieldName] || []);
         setOptions(opts);
       } else {
-        setOptions([]); // No options for these fields
+        setOptions([]); 
       }
-    } catch (error) {
-      console.error(`Failed to load options for ${fieldLabel}:`, error);
-      toast({ title: "Error", description: `Could not load ${fieldLabel} options.`, variant: "destructive" });
-    } finally {
-      setIsLoadingOptions(false);
-    }
-
-    try {
-      const defValue = await getFieldDefaultValue(fieldName, username);
+      
+      const fieldDefaultKey = `fieldDefault_${fieldName}`;
+      const defValue = (userSettingsData && userSettingsData.hasOwnProperty(fieldDefaultKey)) 
+                       ? userSettingsData[fieldDefaultKey] 
+                       : undefined;
       setCurrentDefault(defValue);
+
     } catch (error) {
-      console.error(`Failed to load default for ${fieldLabel}:`, error);
-      toast({ title: "Error", description: `Could not load default for ${fieldLabel}.`, variant: "destructive" });
+      console.error(`Failed to load settings for ${fieldLabel}:`, error);
+      toast({ title: "Error", description: `Could not load ${fieldLabel} settings.`, variant: "destructive" });
     } finally {
-      setIsLoadingDefault(false);
+      setIsLoadingSettings(false);
     }
   }, [fieldName, fieldLabel, toast, username, isInputOnlyField]);
 
@@ -93,7 +93,7 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
       try {
         await addOptionToField(fieldName, username, newOption.trim());
         setNewOption("");
-        await fetchAllData();
+        await fetchAllData(); // Refetch all data to ensure consistency
         toast({ title: "Success", description: `Option "${newOption.trim()}" added to ${fieldLabel}.` });
       } catch (error) {
         toast({ title: "Error", description: `Failed to add option.`, variant: "destructive" });
@@ -106,7 +106,7 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
     startMutation(async () => {
       try {
         await removeOptionFromField(fieldName, username, option);
-        await fetchAllData();
+        await fetchAllData(); // Refetch
         toast({ title: "Success", description: `Option "${option}" removed from ${fieldLabel}.` });
       } catch (error) {
         toast({ title: "Error", description: `Failed to remove option.`, variant: "destructive" });
@@ -125,7 +125,7 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
       try {
         await editOptionInField(fieldName, username, editingOption.old, editingOption.current.trim());
         setEditingOption(null);
-        await fetchAllData();
+        await fetchAllData(); // Refetch
         toast({ title: "Success", description: `Option updated in ${fieldLabel}.` });
       } catch (error) {
         toast({ title: "Error", description: `Failed to update option.`, variant: "destructive" });
@@ -133,19 +133,19 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
     });
   };
 
-  const handleSetDefault = (value: string | string[] | number) => {
+  const handleSetDefault = (value: string | string[] | number | null) => { // Allow null for clearing
     if (!username) return;
-    // For rrRatio, ensure it's a number or undefined
+    
     let valueToSet: string | string[] | number | null = value;
     if (fieldName === 'rrRatio') {
         const numVal = Number(value);
-        valueToSet = isNaN(numVal) ? null : numVal;
+        valueToSet = (value === null || value === "" || isNaN(numVal)) ? null : numVal;
     }
 
     startMutation(async () => {
       try {
         await setFieldDefaultValue(fieldName, username, valueToSet);
-        setCurrentDefault(valueToSet ?? undefined); // Update local state
+        setCurrentDefault(valueToSet ?? undefined); 
         toast({ title: "Success", description: `Default value for ${fieldLabel} updated.` });
       } catch (error) {
         toast({ title: "Error", description: `Failed to set default value.`, variant: "destructive" });
@@ -154,16 +154,7 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
   };
 
   const handleClearDefault = () => {
-    if (!username) return;
-    startMutation(async () => {
-      try {
-        await setFieldDefaultValue(fieldName, username, null); // Pass null to clear
-        setCurrentDefault(undefined);
-        toast({ title: "Success", description: `Default value for ${fieldLabel} cleared.` });
-      } catch (error) {
-        toast({ title: "Error", description: `Failed to clear default value.`, variant: "destructive" });
-      }
-    });
+    handleSetDefault(null); // Call handleSetDefault with null to clear
   };
 
   const defaultSelectorOptions: MultiSelectItem[] = options.map(opt => ({ value: opt, label: opt }));
@@ -177,7 +168,7 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
     );
   }
 
-  if (isLoadingOptions || isLoadingDefault) {
+  if (isLoadingSettings) {
     return (
       <Card>
         <CardHeader><CardTitle>{fieldLabel}</CardTitle></CardHeader>
@@ -196,7 +187,6 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
         <CardDescription>Manage selectable options and set a default value for "{fieldLabel}".</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 flex-grow">
-        {/* Options Management (Not for rrRatio or tradingviewChartUrl) */}
         {!isInputOnlyField && (
           <div>
             <Label htmlFor={`new-option-${fieldName}`}>Manage Options</Label>
@@ -237,7 +227,6 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
 
         <Separator className="my-6" />
 
-        {/* Default Value Management */}
         <div className="space-y-2">
           <Label htmlFor={`default-value-${fieldName}`}>Set Default Value</Label>
           {fieldName === 'rrRatio' ? (
@@ -246,14 +235,14 @@ export function SettingsManager({ fieldName, fieldLabel }: SettingsManagerProps)
               type="number"
               step="any"
               placeholder="e.g., 1.5"
-              value={currentDefault === undefined ? "" : String(currentDefault)}
+              value={currentDefault === undefined || currentDefault === null ? "" : String(currentDefault)}
               onChange={(e) => handleSetDefault(e.target.value === "" ? null : Number(e.target.value))}
               disabled={isMutating}
               className="w-full"
             />
           ) : fieldName === 'tradingviewChartUrl' ? (
              <p className="text-sm text-muted-foreground">Default value not applicable for URL fields.</p>
-          ) : isInputOnlyField && fieldName !== 'rrRatio' ? ( // Handles any other future input-only fields
+          ) : isInputOnlyField && fieldName !== 'rrRatio' ? ( 
             <p className="text-sm text-muted-foreground">Default value setting not applicable for this field type.</p>
           ) : options.length === 0 && !isInputOnlyField ? (
             <p className="text-sm text-muted-foreground">Add some options first to set a default.</p>
