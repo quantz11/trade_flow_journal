@@ -104,7 +104,7 @@ export function AnalysisResults() {
         </CardTitle>
         <CardDescription>
           Discover recurring profitable patterns from your trading journal entries.
-          The AI will analyze Point of Interest (POI) and Reaction combinations.
+          The AI will analyze Premarket Condition, Point of Interest (POI), Reaction to POI, and Entry Type combinations.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -153,13 +153,37 @@ export function AnalysisResults() {
                 <AccordionItem value={`item-${index}`} key={index} className="bg-card border border-border rounded-lg mb-3">
                   <AccordionTrigger className="hover:no-underline px-4 py-3 text-left">
                     <div className="flex flex-col md:flex-row md:items-center justify-between w-full">
-                      <span className="font-medium text-base text-primary flex-1 mb-2 md:mb-0">Strategy for POI/Reaction Match</span>
+                      <span className="font-medium text-base text-primary flex-1 mb-2 md:mb-0">Strategy for Matched Conditions</span>
                       <Badge variant={strategy.confidence > 0.7 ? "default" : strategy.confidence > 0.4 ? "secondary" : "outline"} className="md:ml-4">
                         Confidence: {(strategy.confidence * 100).toFixed(0)}%
                       </Badge>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 py-3 space-y-3 text-sm">
+                    {strategy.premarketConditionCombination && strategy.premarketConditionCombination.length > 0 && (
+                        <div>
+                            <strong>Premarket Condition(s):</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                            {strategy.premarketConditionCombination.map(p => {
+                                const colors = getTextBasedTailwindColors(p);
+                                return (
+                                <Badge
+                                    key={p}
+                                    className={cn(
+                                    "whitespace-nowrap",
+                                    colors.background,
+                                    colors.text,
+                                    colors.hoverBackground,
+                                    colors.border
+                                    )}
+                                >
+                                    {p}
+                                </Badge>
+                                );
+                            })}
+                            </div>
+                        </div>
+                    )}
                     <div>
                       <strong>Point of Interest (POI):</strong>
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -203,6 +227,10 @@ export function AnalysisResults() {
                           );
                         })}
                       </div>
+                    </div>
+                    <div>
+                        <strong>Entry Type:</strong>
+                        <span className="ml-1 text-foreground">{strategy.entryType || 'N/A'}</span>
                     </div>
                     <p><strong>Suggested Action:</strong> <span className="text-foreground">{strategy.strategy}</span></p>
 

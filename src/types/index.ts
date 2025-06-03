@@ -92,8 +92,10 @@ export type AIJournalEntry = {
 };
 
 export type AISuggestedStrategy = {
+  premarketConditionCombination?: string[]; // Added from previous prompt refinement
   poiCombination: string[];
   reactionToPoiCombination: string[];
+  entryType: string; // Added from previous prompt refinement
   strategy: string;
   confidence: number;
   exampleTrades: {

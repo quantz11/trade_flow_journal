@@ -18,7 +18,7 @@ const TradingPatternInputSchema = z.object({
       pair: z.string().describe('The trading pair (e.g., EUR/USD).'),
       date: z.string().describe('The date of the trade (YYYY-MM-DD).'),
       type: z.string().describe('The type of trade (Long or Short).'),
-      premarketCondition: z.array(z.string()).describe('The premarket condition(s) (e.g., Fair Value Area, Sweep).'), // Changed to array
+      premarketCondition: z.array(z.string()).describe('The premarket condition(s) (e.g., Fair Value Area, Sweep).'),
       poi: z.array(z.string()).describe('The Point of Interest(s) for the trade (e.g., Order Block, Fair Value Gap, Liquidity).'),
       reactionToPoi: z.array(z.string()).describe('The Reaction(s) to the Point of Interest (e.g., Strong Rejection, Consolidation, Breakthrough).'),
       entryType: z.string().describe('The entry type (e.g., Market, Limit, Stop).'),
@@ -38,17 +38,21 @@ export type TradingPatternInput = z.infer<typeof TradingPatternInputSchema>;
 const TradingPatternOutputSchema = z.object({
   suggestedStrategies: z.array(
     z.object({
-      poiCombination: z.array(z.string()).describe('The specific Point of Interest combination.'),
-      reactionToPoiCombination: z.array(z.string()).describe('The specific Reaction to Point of Interest combination.'),
-      strategy: z.string().describe('The suggested trading strategy for this POI/Reaction combination.'),
-      confidence: z.number().describe('A confidence score (0-1) for the effectiveness of this strategy based on past data.'),
+      poiCombination: z.array(z.string()).describe('The specific Point of Interest (POI) combination.'),
+      reactionToPoiCombination: z.array(z.string()).describe('The specific Reaction to Point of Interest (POI) combination.'),
+      entryType: z.string().describe('The specific entry type most commonly or effectively associated with this pattern (e.g., Market, Limit).'),
+      premarketConditionCombination: z.array(z.string()).optional().describe('The specific Premarket Condition(s) combination, if a strong factor in the pattern.'),
+      strategy: z.string().describe(
+        "A detailed, actionable trading strategy. Should include: entry idea (aligning with identified 'entryType'), key TP considerations, and key SL considerations. Mention trade direction (Long/Short)."
+      ),
+      confidence: z.number().describe('A confidence score (0-1) for the effectiveness of this strategy based on past data. Higher confidence if supported by multiple wins with good RR.'),
       exampleTrades: z.array(
         z.object({
           date: z.string().describe('The date of the example trade.'),
           outcome: z.string().describe('The outcome of the example trade.'),
           rrRatio: z.number().optional().describe('The RR Ratio of the example trade, if available.'),
         })
-      ).describe('Example trades that demonstrate this strategy.'),
+      ).describe('Example trades that demonstrate this strategy (preferably winning trades).'),
     })
   ).describe('An array of suggested trading strategies based on recurring profitable patterns.'),
 });
@@ -63,28 +67,31 @@ const prompt = ai.definePrompt({
   name: 'tradingPatternAnalysisPrompt',
   input: {schema: TradingPatternInputSchema},
   output: {schema: TradingPatternOutputSchema},
-  prompt: `You are an expert trading strategy analyst. Analyze the following trading journal entries to identify recurring profitable patterns based on Point of Interest (POI) and Reaction to POI combinations. Suggest optimal trading strategies based on these patterns.
+  prompt: `You are an expert trading strategy analyst. Analyze the following trading journal entries to identify recurring trading patterns.
+Your goal is to suggest actionable trading strategies based on combinations of Point of Interest (POI), Reaction to POI, Premarket Conditions, and the Entry Type used.
 
 Journal Entries:
 {{#each journalEntries}}
-  - Pair: {{{pair}}}, Date: {{{date}}}, Type: {{{type}}}, Premarket Condition(s): {{#each premarketCondition}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, POI: {{#each poi}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Reaction to POI: {{#each reactionToPoi}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Entry Type: {{{entryType}}}, Session: {{{session}}}, Psychology: {{#each psychology}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Outcome: {{{outcome}}}{{#if rrRatio}}, RR Ratio: {{{rrRatio}}}R{{/if}}{{#if tradingviewChartUrl}}, Chart: {{{tradingviewChartUrl}}}{{/if}}{{#if tp.length}}, TP: {{#each tp}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}{{#if sl.length}}, SL: {{#each sl}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
+  - Pair: {{{pair}}}, Date: {{{date}}}, Type: {{{type}}}, Premarket Condition(s): {{#each premarketCondition}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, POI: {{#each poi}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Reaction to POI: {{#each reactionToPoi}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Entry Type: {{{entryType}}}, Session: {{{session}}}, Psychology: {{#if psychology}}{{#each psychology}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}, Outcome: {{{outcome}}}{{#if rrRatio}}, RR Ratio: {{{rrRatio}}}R{{/if}}{{#if tradingviewChartUrl}}, Chart: {{{tradingviewChartUrl}}}{{/if}}{{#if tp.length}}, TP: {{#each tp}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}{{#if sl.length}}, SL: {{#each sl}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
 {{/each}}
 
-Based on these entries, identify profitable patterns related to specific POI and Reaction to POI combinations. Provide a confidence score (0-1) for each suggested strategy based on the historical success rate.
-Consider the RR Ratio when evaluating profitability. Higher RR ratios on winning trades are more significant.
-Also consider if specific TP or SL strategies contribute to patterns.
-Consider the Premarket Condition(s) when identifying patterns.
+Based on these entries, identify and include all discernible trading patterns. For each pattern:
+1.  Specify the 'poiCombination' and 'reactionToPoiCombination'.
+2.  Specify the 'entryType' that is most commonly or effectively associated with this pattern's success.
+3.  If Premarket Condition(s) are a strong recurring factor for the pattern's success, include the 'premarketConditionCombination'.
+4.  Formulate an actionable 'strategy'. This description must be detailed:
+    *   Clearly state the trade direction (Long/Short).
+    *   Describe the entry idea/conditions, aligning with the identified 'entryType' (e.g., "Consider a Limit entry upon a bullish rejection from the [POI] after price sweeps liquidity below it during [Premarket Condition]").
+    *   Suggest key Take Profit (TP) considerations based on observed successful TP reasons/levels for this pattern (e.g., "Target previous structural high or an imbalance fill").
+    *   Suggest key Stop Loss (SL) considerations based on observed SL reasons/levels for this pattern (e.g., "Place stop loss below the low of the POI confirmation candle").
+5.  Provide a 'confidence' score (0-1) for the strategy. This score should primarily reflect the pattern's historical profitability (number of wins vs. losses for the pattern, and their RR Ratios) and consistency. Patterns with more 'Win' outcomes, especially those with favorable Risk-Reward (RR) Ratios, should receive higher confidence scores.
+6.  List 'exampleTrades' that support this strategy, prioritizing winning examples.
+7.  Consider 'psychology': If you notice a strong correlation where certain psychological states (e.g., "Disciplined") consistently accompany winning trades for a pattern, or negative states (e.g., "FOMO") accompany losses, briefly mention this as part of the 'strategy' description.
 
-For each suggested strategy, include example trades (date, outcome, and rrRatio if available) that support the strategy's effectiveness.
+Even if a pattern has low confidence (e.g., few occurrences, mixed results), include it in the 'suggestedStrategies' if it's a recurring combination.
+If absolutely no recurring patterns (profitable or otherwise) can be identified from the journal entries, then and only then return an empty array for suggestedStrategies.
 
-Ensure the output is a JSON array of suggested trading strategies. Each strategy must include the poiCombination, reactionToPoiCombination, strategy, confidence, and exampleTrades.
-
-Consider the following when identifying patterns:
-  - Frequency of occurrence: How often does this POI/Reaction combination lead to a profitable outcome?
-  - Consistency: How consistent is the profitable outcome across different trading pairs, sessions, and entry types?
-  - Risk-reward ratio: What is the average risk-reward ratio associated with this pattern? Look for patterns with favorable RR ratios.
-  - TP/SL patterns: Are there common Take Profit or Stop Loss strategies associated with profitable outcomes for certain POI/Reaction combinations?
-  - Premarket condition patterns: Does the premarket condition influence the success of certain POI/Reaction combinations?
+Ensure the output strictly adheres to the JSON schema provided for TradingPatternOutput.
 `,
 });
 
@@ -95,17 +102,13 @@ const analyzeTradingPatternsFlow = ai.defineFlow(
     outputSchema: TradingPatternOutputSchema,
   },
   async input => {
-    // The prompt() call itself will throw an error if there's a network issue
-    // or an API key problem that Genkit can detect.
     const {output} = await prompt(input);
 
     if (!output) {
-      // This condition handles cases where the prompt executed successfully
-      // but the AI model did not return any structured output,
-      // or the output did not match the expected schema.
       console.error('TradingPatternAnalysisFlow: AI Prompt returned successfully but the output was empty or not in the expected format.');
       throw new Error('AI model generated an empty or invalid response. The prompt might need adjustment or the input data could be problematic.');
     }
     return output;
   }
 );
+
